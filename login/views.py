@@ -51,7 +51,7 @@ def register(request):
             password1 = register_form.cleaned_data['password1']
             password2 = register_form.cleaned_data['password2']
             email = register_form.cleaned_data['email']
-            sex= register_form.cleaned_data['sex']
+            sex = register_form.cleaned_data['sex']
             if password1 != password2:
                 message = '两次输入的密码不同！'
                 return render(request, 'login/register.html',locals())
@@ -65,7 +65,7 @@ def register(request):
                     message = '该邮箱已经被注册，请使用别的邮箱!'
                     return render(request,'login/register.html',locals())
 
-                new_user = models.User
+                new_user = models.User()
                 new_user.name = username
                 new_user.password = password1
                 new_user.email =email
