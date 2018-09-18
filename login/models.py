@@ -1,6 +1,10 @@
 from django.db import models
 
-
+"""
+在models.py增加表后，先手动创建表，再执行数据库迁移操作
+1.先执行 python manage.py makemigrations
+2.再执行python manage.py migrate
+"""
 # Create your models here.
 class User(models.Model):
     gender = (
