@@ -3,6 +3,8 @@ from django.shortcuts import redirect
 from . import models
 from . import forms
 import hashlib
+import datetime
+from mysite import settings
 
 
 # Create your views here.
@@ -17,7 +19,7 @@ def login(request):
         return redirect('/index/')
     if request.method == "POST":
         login_form = forms.UserForm(request.POST)
-        message = '所有的字段都必须填写!'
+        message = '请检查填写的内容!'
         if login_form.is_valid():
             username = login_form.cleaned_data.get('username')
             password = login_form.cleaned_data.get('password')
@@ -26,6 +28,10 @@ def login(request):
             except:
                 message = '用户不存在!'
                 return render(request, 'login/login.html', locals())
+            if not user.has_confirmed:
+                message = '该用户还未通过邮件确认，不能登录!'
+                return render(request,'login/login.html',locals())
+
             if user.password == hash_code(password):
                 request.session['is_login'] = True
                 request.session['user_id'] = user.id
@@ -72,7 +78,12 @@ def register(request):
                 new_user.email = email
                 new_user.sex = sex
                 new_user.save()
-                return redirect('/login/')
+
+                code = make_confirm_string(new_user)
+                send_mail(email, code)
+
+                message = '请前住注册邮箱，进行邮件确认!'
+                return render(request, 'login/confirm.html', locals())
     register_form = forms.RegisterForm()
     return render(request, 'login/register.html', locals())
 
@@ -89,3 +100,48 @@ def hash_code(s, salt='mysite'):
     s += salt
     h.update(s.encode())  # update方法只接收bytes类型
     return h.hexdigest()
+
+
+def make_confirm_string(user):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    code = hash_code(user.name, now)
+    models.ConfirmString.objects.create(code=code, user=user)
+
+
+def send_mail(email, code):
+    from django.core.mail import EmailMultiAlternatives
+    subject = '来自www.liujiangblog.com的注册确认邮件',
+    text_content = '''感谢注册www.liujiangblog.com，这里是刘江的博客和教程站点，专注于Python和Django技术的分享！\
+                        如果你看到这条消息，说明你的邮箱服务器不提供HTML链接功能，请联系管理员！'''
+    html_content = '''
+                       <p>感谢注册<a href="http://{}/confirm/?code={}" target=blank>www.liujiangblog.com</a>，\
+                       这里是刘江的博客和教程站点，专注于Python和Django技术的分享！</p>
+                       <p>请点击站点链接完成注册确认！</p>
+                       <p>此链接有效期为{}天！</p>
+                       '''.format('127.0.0.1:8000', code, settings.CONFIRM_DAYS)
+    msg = EmailMultiAlternatives(subject, text_content, settings.EMAIL_HOST_USER, [email])
+    msg.attach_alternative(html_content, 'text/html')
+    msg.send()
+
+
+def user_confirm(request):
+    code = request.GET.get('code', None)
+    message = ''
+    try:
+        confirm = models.ConfirmString.objects.get(code=code)
+    except:
+        message = '无效的确认请求!'
+        return render(request, 'login/confirm.html', locals())
+
+    c_time = confirm.c_time
+    now = datetime.datetime.now()
+    if now > c_time + datetime.timedelta(settings.CONFIRM_DAYS):
+        confirm.user.delete()
+        message = '您的邮件已经过期，请重新注册!'
+        return render(request, 'login/confirm.html', locals())
+    else:
+        confirm.user.has_confirmed = True
+        confirm.user.save()
+        confirm.delete()
+        message = '感谢确认，请使用账号登录!'
+        return render(request, 'login/confirm.html', locals())
