@@ -6,6 +6,7 @@ from django.db import models
 2.再执行python manage.py migrate
 """
 # Create your models here.
+
 class User(models.Model):
     gender = (
         ('male', '男'),
